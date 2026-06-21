@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load auth_extras %}  {% block title %}Distribución y Logística | Coca-Cola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 animate__animated animate__fadeIn">
+    <h3 class="fw-bold text-dark"><i class="bi bi-truck text-info me-2"></i> Centro de Distribución y Logística</h3>
+    {% if request.user|tiene_rol:"Supervisor Almacen" %}
+    <button class="btn btn-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoTransportista">
+        <i class="bi bi-person-plus-fill"></i> Nuevo Transportista
+    </button>
+    {% endif %}
+</div>
+
+<div class="row g-4 animate__animated animate__fadeInUp">
+    
+    <div class="col-12">
+        <div class="card border-0 shadow-sm border-top border-info border-3">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-box-seam text-info me-2"></i> Pedidos Listos para Despacho <small class="text-muted fs-6 fw-normal">(Aprobados y Pagados)</small></h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>N° Pedido</th>
+                                <th>Cliente</th>
+                                <th>Dirección de Entrega</th>
+                                <th>Asignar Transportista</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos_listos %}
+                            <tr>
+                                <td><strong>#PED-00{{ pedido.id }}</strong></td>
+                                <td>{{ pedido.cliente.cli_razonSocial }}</td>
+                                <td>{{ pedido.cliente.cli_direccion }}</td>
+                                <td>
+                                    {% if request.user|tiene_rol:"Supervisor Almacen" %}
+                                    <form id="form-despacho-{{ pedido.id }}" class="d-flex" onsubmit="despacharPedido(event, '{% url 'generar_despacho' pedido.id %}', 'form-despacho-{{ pedido.id }}')">
+                                        <select name="transportista_id" class="form-select form-select-sm me-2" required>
+                                            <option value="">Seleccione chofer...</option>
+                                            {% for t in transportistas %}
+                                            <option value="{{ t.id }}">{{ t.nombre }} ({{ t.placa_vehiculo }})</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-info text-dark fw-bold shadow-sm">Despachar</button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-muted"><i class="bi bi-lock-fill"></i> Bloqueado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="bi bi-check-circle fs-2 d-block mb-2 opacity-50"></i>
+                                    No hay pedidos pendientes de despacho.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 mt-4">
+        <div class="card border-0 shadow-sm border-top border-warning border-3">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-signpost-split text-warning me-2"></i> Vehículos en Ruta</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>N° Despacho</th>
+                                <th>N° Pedido</th>
+                                <th>Transportista</th>
+                                <th>Destino</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos_en_ruta %}
+                            <tr>
+                                <td><strong class="text-secondary">#DESP-00{{ pedido.ordendespacho.id }}</strong></td>
+                                <td><strong>#PED-00{{ pedido.id }}</strong></td>
+                                <td>
+                                    {{ pedido.ordendespacho.transportista.nombre }} <br>
+                                    <small class="text-muted"><i class="bi bi-car-front"></i> {{ pedido.ordendespacho.transportista.placa_vehiculo }}</small>
+                                </td>
+                                <td>{{ pedido.ordendespacho.direccion_destino }}</td>
+                                <td><span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-truck"></i> En Ruta</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary shadow-sm" onclick="window.print()" title="Imprimir Guía">
+                                        <i class="bi bi-printer-fill"></i> Guía
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
+                                    No hay vehículos en ruta en este momento.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoTransportista" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{% url 'logistica' %}">
+                {% csrf_token %}
+                <input type="hidden" name="nuevo_transportista" value="1">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Registrar Transportista</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold">Nombre Completo</label>
+                        <input type="text" name="nombre" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold">Placa del Vehículo</label>
+                        <input type="text" name="placa" class="form-control" placeholder="Ej: ABC-123" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold">Teléfono de Contacto</label>
+                        <input type="text" name="telefono" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark px-4">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function despacharPedido(event, url, formId) {
+        event.preventDefault();
+        const form = document.getElementById(formId);
+        const formData = new FormData(form);
+
+        Swal.fire({
+            title: 'Asignando Chofer...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        fetch(url, {
+            method: "POST",
+            headers: { 
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": "{{ csrf_token }}"  
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'ok') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Despachado!',
+                    text: 'El vehículo ha sido asignado y el pedido está en ruta.',
+                    confirmButtonColor: '#0dcaf0'
+                }).then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        })
+        .catch(error => {
+            Swal.fire('Error', 'Problema de comunicación con el servidor.', 'error');
+        });
+    }
+</script>
+{% endblock %}

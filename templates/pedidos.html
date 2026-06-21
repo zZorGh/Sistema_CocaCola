@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load auth_extras %} 
+
+{% block title %}Gestión de Pedidos | Coca-Cola Logística{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-cart-fill text-danger me-2"></i>Gestión de Pedidos (CUS01)</h1>
+        
+        {% if request.user|tiene_rol:"Ejecutivo Comercial" %}
+        <a href="{% url 'clientes' %}" class="btn btn-danger fw-bold shadow-sm">
+            <i class="bi bi-plus-lg"></i> Nuevo Pedido
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light rounded">
+            <form method="GET" class="d-flex">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control border-start-0" placeholder="Buscar por N° de Pedido, Nombre del Cliente o Estado...">
+                    <button class="btn btn-dark px-4" type="submit">Buscar</button>
+                    {% if query %}
+                        <a href="{% url 'pedidos' %}" class="btn btn-outline-secondary">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive bg-white p-3 rounded shadow-sm">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>N° Pedido</th>
+                    <th>Cliente</th>
+                    <th>Total (S/)</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pedido in pedidos %}
+                <tr>
+                    <td class="fw-bold text-muted">#PED-00{{ pedido.id }}</td>
+                    <td class="fw-bold">{{ pedido.cliente.cli_razonSocial }}</td>
+                    <td class="text-success fw-bold">S/ {{ pedido.total }}</td>
+                    <td>
+                        {% if pedido.estado == 'En Evaluación' %}<span class="badge bg-secondary"><i class="bi bi-hourglass-split me-1"></i>En Evaluación</span>
+                        {% elif pedido.estado == 'Aprobado' %}<span class="badge bg-primary"><i class="bi bi-check-circle me-1"></i>Aprobado</span>
+                        {% elif pedido.estado == 'En Ruta' %}<span class="badge bg-warning text-dark"><i class="bi bi-truck me-1"></i>En Ruta</span>
+                        {% elif pedido.estado == 'Devuelto' %}<span class="badge bg-danger"><i class="bi bi-arrow-return-left me-1"></i>Devuelto</span>
+                        {% else %}<span class="badge bg-dark">{{ pedido.estado }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if request.user|tiene_rol:"Ejecutivo Comercial" %}
+                            {% if pedido.estado == 'En Evaluación' %}
+                            <button type="button" class="btn btn-sm btn-success shadow-sm" onclick="autorizarPedido('{% url 'autorizar_pedido' pedido.id %}')" title="Aprobar Pedido"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="btn btn-sm btn-danger shadow-sm ms-1" onclick="eliminarPedido('{% url 'eliminar_pedido' pedido.id %}')" title="Eliminar"><i class="bi bi-trash"></i></button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-secondary disabled"><i class="bi bi-lock-fill"></i> Bloqueado</button>
+                            {% endif %}
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-secondary disabled"><i class="bi bi-eye"></i> Solo Lectura</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center py-4 text-muted">No se encontraron pedidos.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if pedidos.has_other_pages %}
+        <nav aria-label="Navegación de páginas" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pedidos.has_previous %}
+                    <li class="page-item"><a class="page-link text-danger" href="?page=1&q={{ query }}">Primera</a></li>
+                    <li class="page-item"><a class="page-link text-danger" href="?page={{ pedidos.previous_page_number }}&q={{ query }}">&laquo;</a></li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                {% endif %}
+
+                <li class="page-item active"><span class="page-link bg-danger border-danger">{{ pedidos.number }} de {{ pedidos.paginator.num_pages }}</span></li>
+
+                {% if pedidos.has_next %}
+                    <li class="page-item"><a class="page-link text-danger" href="?page={{ pedidos.next_page_number }}&q={{ query }}">&raquo;</a></li>
+                    <li class="page-item"><a class="page-link text-danger" href="?page={{ pedidos.paginator.num_pages }}&q={{ query }}">Última</a></li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function autorizarPedido(url) {
+            Swal.fire({
+                title: '¿Autorizar Pedido?',
+                text: "Esto descontará el stock de la base de datos y generará la orden de cobro.",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, aprobar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    
+                    Swal.fire({
+                        title: 'Procesando...',
+                        text: 'Comprobando inventario y registrando pago...',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    fetch(url, {
+                        method: "POST",
+                        headers: { 
+                            "X-CSRFToken": "{{ csrf_token }}",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                    .then(res => {
+                        if (res.ok || res.redirected) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '¡Aprobado!',
+                                text: 'El pedido pasó a Logística y Finanzas.',
+                                confirmButtonColor: '#F40009'
+                            }).then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire('Error', 'Hubo un problema procesando el pedido.', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        Swal.fire('Error', 'No hay comunicación con el servidor.', 'error');
+                    });
+                }
+            });
+        }
+
+        function eliminarPedido(url) {
+            Swal.fire({
+                title: '¿Eliminar Pedido?',
+                text: "¡Esta acción no se puede deshacer y quedará en la auditoría!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    
+                    Swal.fire({
+                        title: 'Eliminando...',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    fetch(url, {
+                        method: "POST",
+                        headers: { 
+                            "X-CSRFToken": "{{ csrf_token }}",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                    .then(res => {
+                        if (res.ok || res.redirected) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '¡Eliminado!',
+                                text: 'El pedido fue borrado del sistema.',
+                                confirmButtonColor: '#F40009'
+                            }).then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire('Error', 'No se pudo eliminar el pedido.', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        Swal.fire('Error', 'No hay comunicación con el servidor.', 'error');
+                    });
+                }
+            });
+        }
+    </script>
+{% endblock %}

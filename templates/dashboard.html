@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load auth_extras %} 
+
+{% block title %}Panel de Control | Coca-Cola Logística{% endblock %}
+
+{% block body_class %}hide-sidebar-mode{% endblock %}
+
+{% block content %}
+    <div class="row g-3 mb-5 animate__animated animate__fadeIn">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 bg-success text-white h-100 hover-card">
+                <div class="card-body">
+                    <h6 class="text-uppercase mb-2 opacity-75"><i class="bi bi-cash-stack me-2"></i>Ingresos Totales</h6>
+                    <h2 class="mb-0 fw-bold">S/ {{ ingresos_totales|floatformat:2|intcomma }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 bg-primary text-white h-100 hover-card">
+                <div class="card-body">
+                    <h6 class="text-uppercase mb-2 opacity-75"><i class="bi bi-cart-check me-2"></i>Total Pedidos</h6>
+                    <h2 class="mb-0 fw-bold">{{ total_pedidos|intcomma }} <small class="fs-6 fw-normal">({{ pedidos_en_ruta }} en ruta)</small></h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 {% if productos_alerta > 0 %}bg-warning text-dark{% else %}bg-secondary text-white{% endif %} h-100 hover-card">
+                <div class="card-body">
+                    <h6 class="text-uppercase mb-2 opacity-75"><i class="bi bi-exclamation-triangle me-2"></i>Alertas de Stock</h6>
+                    <h2 class="mb-0 fw-bold">{{ productos_alerta|intcomma }} <small class="fs-6 fw-normal">bajos</small></h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 {% if tickets_pendientes > 0 %}bg-danger text-white{% else %}bg-secondary text-white{% endif %} h-100 hover-card">
+                <div class="card-body">
+                    <h6 class="text-uppercase mb-2 opacity-75"><i class="bi bi-headset me-2"></i>Tickets Pendientes</h6>
+                    <h2 class="mb-0 fw-bold">{{ tickets_pendientes|intcomma }} <small class="fs-6 fw-normal">activos</small></h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h5 class="text-muted mb-4 fw-semibold"><i class="bi bi-grid-1x2-fill me-2"></i>Módulos Operativos (CUS)</h5>
+    
+    <div class="row g-4 animate__animated animate__fadeInUp animate__faster">
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Ejecutivo Comercial" %}
+            <a href="{% url 'pedidos' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-cart-fill fs-1 d-block text-danger mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Pedidos</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Pedidos</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Analista Tesoreria" %}
+            <a href="{% url 'pagos' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-cash-stack fs-1 d-block text-success mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Pagos</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Pagos</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Supervisor Almacen" %}
+            <a href="{% url 'inventario' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-box-seam fs-1 d-block text-primary mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Inventario</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Inventario</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Supervisor Almacen" %}
+            <a href="{% url 'logistica' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-truck fs-1 d-block text-info mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Logística</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Logística</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Administrador Comercial" %}
+            <a href="{% url 'clientes' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-folder-fill fs-1 d-block text-warning mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Administración</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Administración</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            {% if request.user|tiene_rol:"Supervisor Servicio" %}
+            <a href="{% url 'devoluciones' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-arrow-return-left fs-1 d-block text-secondary mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Devoluciones</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Devoluciones</strong>
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4 offset-md-4">
+            {% if request.user|tiene_rol:"Supervisor Servicio" %}
+            <a href="{% url 'atencion' %}" class="btn btn-light border w-100 py-4 shadow-sm text-decoration-none hover-shadow module-card">
+                <i class="bi bi-headset fs-1 d-block text-dark mb-3"></i> <strong class="text-dark text-uppercase letter-spacing-1">Atención</strong>
+            </a>
+            {% else %}
+            <button class="btn btn-light border w-100 py-4 shadow-none opacity-50 module-card" disabled>
+                <i class="bi bi-lock-fill fs-1 d-block text-muted mb-3"></i> <strong class="text-muted text-uppercase letter-spacing-1">Atención</strong>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <style>
+        /* --- ESTÉTICA MEJORADA PARA LAS TARJETAS --- */
+        .hover-card { 
+            transition: transform 0.3s ease, box-shadow 0.3s ease; 
+            border-radius: 10px;
+        }
+        .hover-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important; 
+        }
+
+        .module-card {
+            border-radius: 12px;
+            background-color: #ffffff;
+        }
+        
+        .hover-shadow { 
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; 
+        }
+        
+        .hover-shadow:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 12px 25px rgba(0,0,0,0.08) !important; 
+            border-color: #F40009 !important; /* Rojo corporativo al pasar el ratón */
+        }
+        
+        .opacity-50 { 
+            opacity: 0.55 !important; 
+            background-color: #f8f9fa !important; 
+            cursor: not-allowed;
+        }
+
+        .letter-spacing-1 {
+            letter-spacing: 1px;
+        }
+    </style>
+{% endblock %}

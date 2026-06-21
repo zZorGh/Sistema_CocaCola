@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load auth_extras %}
+
+{% block title %}Administración de Clientes | Sistema Logístico{% endblock %}
+
+{% block content %}
+
+    <!-- ========================================== -->
+    <!-- ENCABEZADO Y BOTÓN DE NUEVO REGISTRO       -->
+    <!-- ========================================== -->
+    <div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+        <h1 class="h2"><i class="bi bi-folder-fill text-warning me-2"></i>Gestión de Clientes (CUS05)</h1>
+        
+        {% if request.user|tiene_rol:"Administrador Comercial" or request.user|tiene_rol:"Ejecutivo Comercial" %}
+        <button type="button" class="btn btn-warning text-dark fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCliente">
+            <i class="bi bi-person-plus-fill"></i> Registrar Nuevo Cliente
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- ========================================== -->
+    <!-- RENDERIZADO DE ALERTAS DE DUPLICIDAD       -->
+    <!-- ========================================== -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- BUSCADOR DE CLIENTES (FILTRO)              -->
+    <!-- ========================================== -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-light rounded">
+            <form method="GET" class="d-flex">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control border-start-0" placeholder="Buscar por DNI/RUC o Nombre de Cliente...">
+                    <button class="btn btn-dark px-4" type="submit">Buscar</button>
+                    {% if query %}
+                        <a href="{% url 'clientes' %}" class="btn btn-outline-secondary">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MENSAJE DE AYUDA PARA EJECUTIVO COMERCIAL  -->
+    <!-- ========================================== -->
+    {% if request.user|tiene_rol:"Ejecutivo Comercial" %}
+    <div class="alert alert-secondary border-0 border-start border-4 border-warning bg-light mb-4 shadow-sm">
+        <i class="bi bi-info-circle-fill me-2 text-warning"></i>
+        <strong>Paso 1 del Flujo de Ventas:</strong> Selecciona un cliente de la lista para poder iniciar un pedido.
+    </div>
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- TABLA PRINCIPAL DE CLIENTES                -->
+    <!-- ========================================== -->
+    <div class="table-responsive bg-white p-3 rounded shadow-sm mb-4">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>DNI / RUC</th>
+                    <th>Nombre / Razón Social</th>
+                    <th>Dirección de Despacho</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cliente in clientes %}
+                <tr>
+                    <td class="fw-bold text-muted">{{ cliente.cli_ruc }}</td>
+                    <td class="fw-bold text-dark">{{ cliente.cli_razonSocial }}</td>
+                    <td><i class="bi bi-geo-alt-fill text-danger opacity-75 me-1"></i> {{ cliente.cli_direccion }}</td>
+                    <td class="text-center">
+                        
+                        <!-- Botón Vender -->
+                        {% if request.user|tiene_rol:"Ejecutivo Comercial" %}
+                        <a href="{% url 'crear_pedido' cliente.id %}" class="btn btn-sm btn-danger shadow-sm hover-scale me-1" title="Vender">
+                            <i class="bi bi-cart-plus-fill"></i> Vender
+                        </a>
+                        {% endif %}
+
+                        <!-- Botones de Edición y Eliminación -->
+                        {% if request.user|tiene_rol:"Administrador Comercial" or request.user|tiene_rol:"Ejecutivo Comercial" %}
+                        <button class="btn btn-sm btn-outline-secondary shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCliente{{ cliente.id }}" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        
+                        <!-- AQUÍ ENVIAMOS LA URL EXACTA GENERADA POR DJANGO -->
+                        <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="eliminarCliente('{% url 'eliminar_cliente' cliente.id %}')" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
+
+                        <!-- Restricción Visual -->
+                        {% if not request.user|tiene_rol:"Ejecutivo Comercial" and not request.user|tiene_rol:"Administrador Comercial" %}
+                        <span class="text-muted small"><i class="bi bi-lock-fill"></i> Sin permisos</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>No hay clientes registrados en la base de datos.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODALES DE EDICIÓN DE CLIENTES (DINÁMICOS) -->
+    <!-- ========================================== -->
+    {% if request.user|tiene_rol:"Administrador Comercial" or request.user|tiene_rol:"Ejecutivo Comercial" %}
+        {% for cliente in clientes %}
+        <div class="modal fade" id="modalEditarCliente{{ cliente.id }}" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content border-0">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Editar Cliente</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    
+                    <!-- AQUÍ DECLARAMOS LA URL EXACTA EN EL ACTION DEL FORMULARIO -->
+                    <form action="{% url 'editar_cliente' cliente.id %}" onsubmit="event.preventDefault(); guardarEdicionCliente(this, '{{ cliente.id }}');">                        
+                        <div class="modal-body p-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-muted small text-uppercase">DNI o RUC</label>
+                                <input type="text" name="dni" class="form-control" value="{{ cliente.cli_ruc }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Nombre o Razón Social</label>
+                                <input type="text" name="nombre" class="form-control" value="{{ cliente.cli_razonSocial }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Dirección Exacta</label>
+                                <input type="text" name="direccion" class="form-control" value="{{ cliente.cli_direccion }}" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light border-top-0">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-dark px-4">Actualizar Cliente</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- MODAL DE CREACIÓN DE NUEVO CLIENTE         -->
+    <!-- ========================================== -->
+    <div class="modal fade" id="modalCliente" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Ficha de Nuevo Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'clientes' %}">
+                    {% csrf_token %}
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">DNI o RUC</label>
+                            <input type="text" name="dni" class="form-control form-control-lg" required placeholder="Ej: 71234567">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Nombre o Razón Social</label>
+                            <input type="text" name="nombre" class="form-control form-control-lg" required placeholder="Ej: Bodega El Sol">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Dirección Exacta</label>
+                            <input type="text" name="direccion" class="form-control form-control-lg" required placeholder="Ej: Av. Principal 123, Distrito">
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-top-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-dark px-4"><i class="bi bi-save me-2"></i>Guardar Cliente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estilos Adicionales -->
+    <style>
+        .hover-scale { transition: transform 0.2s; }
+        .hover-scale:hover { transform: scale(1.05); }
+    </style>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // ==========================================
+        // FUNCIÓN: GUARDAR EDICIÓN POR AJAX
+        // ==========================================
+        function guardarEdicionCliente(formElement, id) {
+            const formData = new FormData(formElement);
+            // Tomamos la URL dinámicamente del 'action' del formulario
+            const url = formElement.getAttribute('action'); 
+            
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById(`modalEditarCliente${id}`));
+                if(modal) modal.hide();
+
+                if(data.status === 'ok') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Actualizado!',
+                        text: 'Los datos del cliente han sido modificados.',
+                        confirmButtonColor: '#212529'
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                }
+            })
+            .catch(error => Swal.fire('Error', 'Problema de conexión con el servidor.', 'error'));
+        }
+
+        // ==========================================
+        // FUNCIÓN: ELIMINAR CLIENTE CON VALIDACIÓN
+        // ==========================================
+        function eliminarCliente(url) {
+            Swal.fire({
+                title: '¿Eliminar Cliente?',
+                text: "Esta acción es irreversible. ¿Deseas continuar?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Ahora usamos la variable 'url' que ya trae la ruta exacta de Django
+                    fetch(url, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.status === 'ok') {
+                            Swal.fire('Eliminado', 'El cliente ha sido retirado de la base de datos.', 'success')
+                            .then(() => location.reload());
+                        } else {
+                            Swal.fire('Bloqueo de Seguridad', data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        Swal.fire('Error del Servidor', 'Ocurrió un problema de comunicación con la base de datos.', 'error');
+                    });
+                }
+            });
+        }
+    </script>
+{% endblock %}

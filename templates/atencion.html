@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+{% load auth_extras %}
+
+{% block title %}Atención al Cliente | Sistema Logístico{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-headset text-info me-2"></i>Centro de Atención al Cliente (CUS07)</h1>
+        
+        {% if request.user|tiene_rol:"Supervisor Servicio" %}
+        <button class="btn btn-info text-dark fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoTicket">
+            <i class="bi bi-envelope-plus"></i> Abrir Nuevo Ticket
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive bg-white p-3 rounded shadow-sm mb-5">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>N° Ticket</th>
+                    <th>Cliente / Referencia</th>
+                    <th>Tipo</th>
+                    <th>Asunto Principal</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td class="fw-bold text-muted">#TK-00{{ ticket.id }}</td>
+                    <td>
+                        <strong>{{ ticket.cliente.cli_razonSocial }}</strong>
+                        {% if ticket.pedido_relacionado %}
+                        <br><small class="text-danger"><i class="bi bi-cart-check"></i> Pedido #PED-00{{ ticket.pedido_relacionado.id }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ticket.tipo == 'Reclamo' %}<span class="badge bg-danger">Reclamo</span>
+                        {% elif ticket.tipo == 'Soporte' %}<span class="badge bg-warning text-dark">Soporte Técnico</span>
+                        {% else %}<span class="badge bg-secondary">Consulta</span>{% endif %}
+                    </td>
+                    <td>{{ ticket.asunto }}</td>
+                    <td>
+                        {% if ticket.estado == 'Abierto' or ticket.estado == 'En Proceso' %}
+                            <span class="badge bg-info text-dark"><i class="bi bi-clock-history me-1"></i>{{ ticket.estado }}</span>
+                        {% else %}
+                            <span class="badge bg-success"><i class="bi bi-check2-all me-1"></i>Resuelto</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary shadow-sm" title="Ver Historial" onclick="verTicket('{{ ticket.descripcion|escapejs }}', '{{ ticket.respuesta_agente|default_if_none:""|escapejs }}')">
+                            <i class="bi bi-eye"></i> Leer
+                        </button>
+                        
+                        {% if request.user|tiene_rol:"Supervisor Servicio" %}
+                            {% if ticket.estado != 'Resuelto' %}
+                            <!-- CORRECCIÓN: Pasamos la URL dinámica de Django a la función JS -->
+                            <button class="btn btn-sm btn-success ms-1 shadow-sm" title="Responder al Cliente" onclick="abrirResolucion('{% url 'resolver_ticket' ticket.id %}', '{{ ticket.asunto|escapejs }}')">
+                                <i class="bi bi-reply-fill"></i> Responder
+                            </button>
+                            {% endif %}
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-secondary disabled ms-1"><i class="bi bi-lock-fill"></i></button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-3 d-block mb-2"></i>Bandeja de entrada limpia. No hay tickets pendientes.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal Nuevo Ticket -->
+    <div class="modal fade" id="modalNuevoTicket" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-info text-dark">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-envelope-plus-fill me-2"></i>Apertura de Ticket Manual</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formNuevoTicket">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Cliente</label>
+                            <select id="tk_cliente" class="form-select" required>
+                                <option value="">Seleccione al cliente emisor...</option>
+                                {% for c in clientes %}
+                                <option value="{{ c.id }}">{{ c.cli_ruc }} - {{ c.cli_razonSocial }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Pedido Relacionado (Opcional)</label>
+                            <select id="tk_pedido" class="form-select">
+                                <option value="">Ninguno (Consulta General)</option>
+                                {% for p in pedidos %}
+                                <option value="{{ p.id }}">Pedido #PED-00{{ p.id }} (Estado: {{ p.estado }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Tipo de Ticket</label>
+                                <select id="tk_tipo" class="form-select" required>
+                                    <option value="Consulta">Consulta General</option>
+                                    <option value="Reclamo">Queja / Reclamo</option>
+                                    <option value="Soporte">Soporte Técnico</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Asunto Corto</label>
+                                <input type="text" id="tk_asunto" class="form-control" placeholder="Ej: Faltó un producto" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Descripción Detallada</label>
+                            <textarea id="tk_desc" class="form-control" rows="4" placeholder="Transcriba el mensaje o problema reportado por el cliente..." required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-top-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-info text-dark fw-bold px-4">Generar Ticket</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Resolver Ticket -->
+    <div class="modal fade" id="modalResolverTicket" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-square-text-fill me-2"></i>Resolver Ticket</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formResolverTicket">
+                    <!-- CORRECCIÓN: Usamos este campo oculto para la URL de la petición -->
+                    <input type="hidden" id="res_ticket_url">
+                    <div class="modal-body p-4">
+                        <div class="alert alert-secondary border-0 shadow-sm">
+                            <span class="small text-muted d-block">Asunto del Cliente:</span>
+                            <strong class="fs-6" id="res_asunto"></strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Respuesta del Agente de Soporte</label>
+                            <textarea id="res_respuesta" class="form-control" rows="5" required placeholder="Estimado cliente, su problema fue solucionado de la siguiente manera..."></textarea>
+                            <div class="form-text">Esta respuesta quedará registrada de forma permanente en el sistema.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-top-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success px-4"><i class="bi bi-send-check me-2"></i>Enviar y Cerrar Caso</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ver Ticket -->
+    <div class="modal fade" id="modalVerTicket" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Historial del Caso</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-body">
+                            <h6 class="fw-bold text-danger mb-2"><i class="bi bi-person me-1"></i>Mensaje del Cliente:</h6>
+                            <p id="view_desc" class="mb-0 text-dark" style="white-space: pre-wrap;"></p>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <h6 class="fw-bold text-success mb-2"><i class="bi bi-headset me-1"></i>Respuesta del Soporte:</h6>
+                            <p id="view_resp" class="mb-0 text-dark fst-italic" style="white-space: pre-wrap;"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        document.getElementById('formNuevoTicket').onsubmit = function(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('cliente_id', document.getElementById('tk_cliente').value);
+            formData.append('pedido_id', document.getElementById('tk_pedido').value);
+            formData.append('tipo', document.getElementById('tk_tipo').value);
+            formData.append('asunto', document.getElementById('tk_asunto').value);
+            formData.append('descripcion', document.getElementById('tk_desc').value);
+
+            // Cerramos modal y mostramos animación
+            const modalEl = document.getElementById('modalNuevoTicket');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+
+            Swal.fire({
+                title: 'Abriendo Ticket...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            // CORRECCIÓN: Ruta de Django absoluta a la función crear_ticket
+            fetch("{% url 'crear_ticket' %}", { 
+                method: "POST", 
+                headers: { 
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                }, 
+                body: formData 
+            })
+            .then(res => {
+                if(res.ok || res.redirected) {
+                    Swal.fire('¡Ticket Creado!', 'El caso fue ingresado al sistema.', 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Error', 'Ocurrió un problema procesando la solicitud.', 'error');
+                }
+            })
+            .catch(error => Swal.fire('Error', 'Problema de conexión con el servidor.', 'error'));
+        };
+
+        function abrirResolucion(url, asunto) {
+            document.getElementById('res_ticket_url').value = url;
+            document.getElementById('res_asunto').innerText = asunto;
+            document.getElementById('formResolverTicket').reset();
+            new bootstrap.Modal(document.getElementById('modalResolverTicket')).show();
+        }
+
+        document.getElementById('formResolverTicket').onsubmit = function(e) {
+            e.preventDefault();
+            const url = document.getElementById('res_ticket_url').value;
+            const formData = new FormData();
+            formData.append('respuesta', document.getElementById('res_respuesta').value);
+
+            const modalEl = document.getElementById('modalResolverTicket');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+
+            Swal.fire({
+                title: 'Enviando Respuesta...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            // CORRECCIÓN: Uso de la URL segura cargada en el campo oculto
+            fetch(url, { 
+                method: "POST", 
+                headers: { 
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "X-Requested-With": "XMLHttpRequest"
+                }, 
+                body: formData 
+            })
+            .then(res => {
+                if(res.ok || res.redirected) {
+                    Swal.fire('Caso Cerrado', 'La respuesta fue enviada y el ticket se marcó como Resuelto.', 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Error', 'No se pudo cerrar el caso.', 'error');
+                }
+            })
+            .catch(error => Swal.fire('Error', 'Problema de conexión con el servidor.', 'error'));
+        };
+
+        function verTicket(desc, resp) {
+            document.getElementById('view_desc').innerText = desc;
+            document.getElementById('view_resp').innerText = resp ? resp : "Aún no hay respuesta del agente asignado. El caso sigue en revisión.";
+            new bootstrap.Modal(document.getElementById('modalVerTicket')).show();
+        }
+    </script>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load auth_extras %}
+
+{% block title %}Historial de Auditoría | Sistema Logístico{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-shield-lock-fill text-danger me-2"></i>Historial de Auditoría y Logs (RNF-12)</h1>
+        {% if request.user.is_superuser %}
+        <span class="badge bg-dark fs-6 py-2 px-3 shadow-sm"><i class="bi bi-person-badge me-1"></i>Nivel: Admin Setup</span>
+        {% endif %}
+    </div>
+
+    {% if request.user.is_superuser %}
+        <div class="alert alert-secondary border-0 border-start border-4 border-danger bg-light shadow-sm mb-4">
+            <i class="bi bi-info-circle-fill me-2 text-danger"></i>
+            <strong>Modo de Solo Lectura:</strong> Por cumplimiento del RNF-12 de seguridad corporativa, los registros de auditoría no pueden ser modificados ni eliminados por ningún usuario o administrador.
+        </div>
+
+        <div class="table-responsive bg-white p-3 rounded shadow-sm mb-5">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario Responsable</th>
+                        <th>Módulo Afectado</th>
+                        <th>Acción Realizada</th>
+                        <th>Detalle Técnico</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="text-muted text-nowrap"><i class="bi bi-calendar3 me-1"></i> {{ log.fecha_hora|date:"d/m/Y H:i:s" }}</td>
+                        <td class="fw-bold"><i class="bi bi-person-circle me-1 text-primary"></i> {{ log.usuario.username|upper }}</td>
+                        <td>
+                            {% if log.modulo == 'Ventas' %}<span class="badge bg-danger">{{ log.modulo }}</span>
+                            {% elif log.modulo == 'Inventario' %}<span class="badge bg-primary">{{ log.modulo }}</span>
+                            {% elif log.modulo == 'Finanzas' %}<span class="badge bg-success">{{ log.modulo }}</span>
+                            {% elif log.modulo == 'Logística' %}<span class="badge bg-info text-dark">{{ log.modulo }}</span>
+                            {% elif log.modulo == 'Administración' %}<span class="badge bg-warning text-dark">{{ log.modulo }}</span>
+                            {% elif log.modulo == 'Devoluciones' %}<span class="badge bg-secondary">{{ log.modulo }}</span>
+                            {% else %}<span class="badge bg-dark">{{ log.modulo }}</span>{% endif %}
+                        </td>
+                        <td class="fw-bold text-dark">{{ log.accion }}</td>
+                        <td><small class="text-muted">{{ log.detalle|default:"Sin detalles adicionales" }}</small></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-clipboard-x fs-1 d-block mb-3 opacity-50"></i>
+                            No hay registros de auditoría en este momento.<br>El sistema comenzará a grabar automáticamente en cuanto se realicen operaciones críticas.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="container text-center py-5 mt-5">
+            <i class="bi bi-shield-x text-danger" style="font-size: 5rem;"></i>
+            <h2 class="mt-3 fw-bold text-dark">Acceso Restringido</h2>
+            <p class="text-muted fs-5">Su cuenta actual (<strong>{{ request.user.username }}</strong>) no tiene los privilegios de <br>Superusuario necesarios para acceder a los logs del sistema.</p>
+            <a href="{% url 'dashboard' %}" class="btn btn-danger mt-3 px-4"><i class="bi bi-arrow-left me-2"></i>Volver al Inicio</a>
+        </div>
+    {% endif %}
+
+{% endblock %}

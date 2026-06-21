@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+{% load auth_extras %} {% block title %}Gestión de Inventario | Sistema Logístico{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <h2 class="text-danger fw-bold"><i class="bi bi-box-seam"></i> Gestión de Inventario (CUS03)</h2>
+        
+        {% if request.user|tiene_rol:"Supervisor Almacen" %}
+        <button class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+            <i class="bi bi-plus-circle"></i> Nuevo Producto
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Código SKU</th>
+                            <th>Producto</th>
+                            <th>Precio Base</th>
+                            <th>Stock Actual</th>
+                            <th>Stock Mínimo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                        <tr>
+                            <td><strong>{{ producto.prod_codigo }}</strong></td>
+                            <td>{{ producto.prod_nombre }}</td>
+                            <td>S/ {{ producto.prod_precio }}</td>
+                            
+                            <td>
+                                {% if producto.inventario.stock_actual <= producto.inventario.stock_minimo %}
+                                    <span class="badge bg-danger rounded-pill px-3 py-2 shadow-sm">
+                                        {{ producto.inventario.stock_actual }} (Alerta)
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success rounded-pill px-3 py-2 shadow-sm">
+                                        {{ producto.inventario.stock_actual }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ producto.inventario.stock_minimo }}</td>
+                            
+                            <td>
+                                {% if request.user|tiene_rol:"Supervisor Almacen" %}
+                                <button class="btn btn-sm btn-warning text-dark fw-bold me-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditar{{ producto.id }}">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="eliminarProducto('{% url 'eliminar_producto' producto.id %}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-secondary disabled"><i class="bi bi-lock-fill"></i> Solo Lectura</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="modalEditar{{ producto.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form onsubmit="event.preventDefault(); guardarEdicionProducto('{% url 'editar_producto' producto.id %}', this, 'modalEditar{{ producto.id }}');">
+                                        <div class="modal-header bg-warning text-dark">
+                                            <h5 class="modal-title fw-bold">Editar {{ producto.prod_nombre }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label text-muted">Nombre del Producto</label>
+                                                <input type="text" name="nombre" class="form-control" value="{{ producto.prod_nombre }}" required>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-4 mb-3">
+                                                    <label class="form-label text-muted">Precio (S/)</label>
+                                                    <input type="number" step="0.01" name="precio" class="form-control" value="{{ producto.prod_precio }}" required>
+                                                </div>
+                                                <div class="col-md-4 mb-3">
+                                                    <label class="form-label text-muted">Stock Actual</label>
+                                                    <input type="number" name="stock_actual" class="form-control" value="{{ producto.inventario.stock_actual }}" required>
+                                                </div>
+                                                <div class="col-md-4 mb-3">
+                                                    <label class="form-label text-muted">Stock Mínimo</label>
+                                                    <input type="number" name="stock_minimo" class="form-control" value="{{ producto.inventario.stock_minimo }}" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary px-4">Guardar Cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                No hay productos registrados en el inventario.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-box-seam me-2"></i>Registrar Nuevo Producto</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold">Código SKU</label>
+                        <input type="text" name="codigo" class="form-control" placeholder="Ej: SKU-001" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold">Nombre del Producto</label>
+                        <input type="text" name="nombre" class="form-control" placeholder="Ej: Coca-Cola 3L" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted fw-bold">Precio (S/)</label>
+                            <input type="number" step="0.01" name="precio" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted fw-bold">Stock Inicial</label>
+                            <input type="number" name="stock_actual" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted fw-bold">Alerta Mínima</label>
+                            <input type="number" name="stock_minimo" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger px-4">Guardar Producto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // JS "Todo Terreno" para editar
+    function guardarEdicionProducto(url, formElement, modalId) {
+        const formData = new FormData(formElement);
+        
+        // Esconder el modal primero
+        const modalEl = document.getElementById(modalId);
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+
+        Swal.fire({
+            title: 'Guardando...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        })
+        .then(res => {
+            if (res.ok || res.redirected) {
+                // Forzamos a que si la respuesta es buena recargue, por si devuelve HTML
+                return res.text().then(text => {
+                    try {
+                        let data = JSON.parse(text);
+                        if(data.status === 'error') throw new Error(data.message);
+                    } catch(e) { } // Si no es JSON o no hay error explícito, asumimos éxito
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Actualizado!',
+                        text: 'El producto y el stock han sido modificados correctamente.',
+                        confirmButtonColor: '#dc3545'
+                    }).then(() => location.reload());
+                });
+            } else {
+                throw new Error("Error del servidor");
+            }
+        })
+        .catch(error => {
+            Swal.fire('Error', 'Problema de conexión con el servidor.', 'error');
+            console.error('Error:', error);
+        });
+    }
+
+    // JS "Todo Terreno" para eliminar
+    function eliminarProducto(url) {
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Se eliminará el producto y todo su registro de stock. Esta acción quedará en la auditoría.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Eliminando...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                })
+                .then(res => {
+                    if (res.ok || res.redirected) {
+                        return res.text().then(text => {
+                            try {
+                                let data = JSON.parse(text);
+                                if(data.status === 'error') {
+                                    Swal.fire('Error', data.message, 'error');
+                                    return;
+                                }
+                            } catch(e) {}
+                            
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Eliminado',
+                                text: 'El producto ha sido retirado del catálogo.',
+                                confirmButtonColor: '#dc3545'
+                            }).then(() => location.reload());
+                        });
+                    } else {
+                        throw new Error("Error del servidor");
+                    }
+                })
+                .catch(error => {
+                    Swal.fire('Error', 'No se pudo eliminar debido a dependencias con pedidos pasados.', 'error');
+                });
+            }
+        });
+    }
+</script>
+{% endblock %}

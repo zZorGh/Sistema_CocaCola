@@ -1,0 +1,215 @@
+{% load static %}
+{% load auth_extras %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema Logístico | Coca-Cola{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+
+    <style>
+        :root {
+            --sidebar-bg: #212529; 
+            --sidebar-expanded: 260px;
+            --coke-red: #F40009;
+            --bg-light: #F8F9FA;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            background-color: var(--sidebar-bg);
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 1000;
+            overflow-x: hidden;
+            white-space: nowrap;
+            width: var(--sidebar-expanded);
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-expanded .sidebar { transform: translateX(0); }
+        .sidebar-expanded .main-content { margin-left: var(--sidebar-expanded); }
+
+        .sidebar-hidden .sidebar { transform: translateX(-100%); }
+        .sidebar-hidden .main-content { margin-left: 0; }
+
+        .nav-link {
+            color: #adb5bd; 
+            border-radius: 8px;
+            margin-bottom: 6px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .nav-link:not(.active):hover {
+            background-color: rgba(255, 255, 255, 0.08); 
+            color: #ffffff; 
+            transform: translateX(5px);
+        }
+
+        .nav-link.active {
+            color: #ffffff !important;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .sidebar-header {
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .main-content {
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            background-color: white;
+            height: 70px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+
+        .content-wrapper { padding: 30px; flex-grow: 1; }
+    </style>
+</head>
+
+<body class="{% if request.resolver_match.url_name == 'dashboard' %}sidebar-hidden{% else %}sidebar-expanded{% endif %}">
+
+    <aside class="sidebar py-3 px-3 shadow">
+        
+        <div class="sidebar-header mb-4">
+            <i class="bi bi-droplet-fill text-danger fs-2"></i>
+            <h5 class="text-white mt-2 mb-0 fw-bold">Coca-Cola</h5>
+            <small class="text-white-50" style="font-size: 0.8rem; letter-spacing: 1px;">SISTEMA LOGÍSTICO</small>
+        </div>
+
+        <ul class="nav flex-column gap-1">
+            
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'dashboard' %}active bg-dark{% endif %}" href="{% url 'dashboard' %}">
+                    <i class="bi bi-speedometer2 me-3 fs-5"></i> <span>Panel de Control</span>
+                </a>
+            </li>
+
+            <hr class="text-white-50 mx-2 my-2 opacity-25">
+
+            {% if request.user|tiene_rol:'Ejecutivo Comercial' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'pedidos' %}active bg-danger{% endif %}" href="{% url 'pedidos' %}">
+                    <i class="bi bi-cart3 me-3 fs-5"></i> <span>Gestión de Pedidos</span>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if request.user|tiene_rol:'Analista Tesoreria' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'pagos' %}active bg-success{% endif %}" href="{% url 'pagos' %}">
+                    <i class="bi bi-cash-stack me-3 fs-5"></i> <span>Control de Pagos</span>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if request.user|tiene_rol:'Supervisor Almacen' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'inventario' %}active bg-primary{% endif %}" href="{% url 'inventario' %}">
+                    <i class="bi bi-boxes me-3 fs-5"></i> <span>Inventario</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'logistica' %}active bg-info text-dark{% endif %}" href="{% url 'logistica' %}">
+                    <i class="bi bi-truck me-3 fs-5"></i> <span>Distribución</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'clientes' %}active bg-secondary{% endif %}" href="{% url 'clientes' %}">
+                    <i class="bi bi-person-vcard me-3 fs-5"></i> <span>Clientes</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'devoluciones' %}active bg-warning text-dark{% endif %}" href="{% url 'devoluciones' %}">
+                    <i class="bi bi-arrow-return-left me-3 fs-5"></i> <span>Devoluciones</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'atencion' %}active bg-dark text-white{% endif %}" href="{% url 'atencion' %}">
+                    <i class="bi bi-headset me-3 fs-5"></i> <span>Soporte y Atención</span>
+                </a>
+            </li>
+
+            <li class="nav-item mt-4 mb-2 w-100 px-2 text-start">
+                <small class="text-muted fw-bold" style="font-size: 0.70rem; letter-spacing: 1px;">ADMIN SETUP</small>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 d-flex align-items-center {% if request.resolver_match.url_name == 'auditoria' %}active bg-secondary{% endif %}" href="{% url 'auditoria' %}">
+                    <i class="bi bi-shield-check me-3 fs-5"></i> <span>Auditoría (Logs)</span>
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        
+        {% block main_header %}
+        <header class="topbar sticky-top">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-speedometer2 text-danger fs-4 me-2"></i>
+                <h5 class="m-0 text-danger fw-bold">Coca-Cola S.A.</h5>
+                <span class="mx-2 text-muted fs-5">|</span>
+                <span class="text-secondary fw-semibold">Plataforma Operativa</span>
+            </div>
+
+            <div class="d-flex align-items-center">
+                <div class="text-end me-3 d-none d-md-block">
+                    <small class="text-muted d-block" style="font-size: 0.75rem; line-height: 1;">Sesión iniciada como:</small>
+                    <span class="fw-bold text-dark"><i class="bi bi-person-circle me-1 text-danger"></i> {{ request.user.username|default:"ADMIN"|upper }}</span>
+                </div>
+                <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm px-3 py-2 rounded-pill fw-semibold shadow-sm transition">
+                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+                </a>
+            </div>
+        </header>
+        {% endblock %}
+
+        <div class="content-wrapper">
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}
+    {% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+{% load auth_extras %}
+
+{% block title %}Nuevo Pedido | Coca-Cola Logística{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+        <div>
+            <h1 class="h2"><i class="bi bi-cart-plus text-danger me-2"></i>Punto de Venta (Nuevo Pedido)</h1>
+            <p class="text-muted mb-0 fs-5">Cliente: <strong class="text-dark">{{ cliente.cli_razonSocial }}</strong> (RUC: {{ cliente.cli_ruc }})</p>
+        </div>
+        <a href="{% url 'pedidos' %}" class="btn btn-outline-secondary shadow-sm"><i class="bi bi-arrow-left"></i> Volver a Pedidos</a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <h4 class="mb-3 text-danger"><i class="bi bi-grid"></i> Catálogo Disponible</h4>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for producto in productos %}
+                <div class="col">
+                    <div class="card h-100 shadow-sm border-0 text-center hover-shadow">
+                        <div class="card-body">
+                            <h5 class="card-title text-dark fw-bold mb-1">{{ producto.prod_nombre }}</h5>
+                            <small class="badge bg-light text-dark border mb-2">{{ producto.prod_codigo }}</small>
+                            
+                            <p class="text-muted small mb-2">
+                                Stock: 
+                                {% if producto.inventario.stock_actual > 0 %}
+                                    <span class="text-success fw-bold">{{ producto.inventario.stock_actual }} u.</span>
+                                {% else %}
+                                    <span class="text-danger fw-bold">Agotado</span>
+                                {% endif %}
+                            </p>
+                            
+                            <h4 class="my-3 text-danger">S/ {{ producto.prod_precio }}</h4>
+                            
+                            <div class="d-flex justify-content-center align-items-center">
+                                <button class="btn btn-sm btn-outline-danger px-3" onclick="actualizarCarrito('{{ producto.id }}', '{{ producto.prod_nombre|escapejs }}', '{{ producto.prod_precio }}', -1, {{ producto.inventario.stock_actual|default:0 }})">-</button>
+                                
+                                <input type="number" id="cant-{{ producto.id }}" value="0" min="0" max="{{ producto.inventario.stock_actual }}" class="form-control form-control-sm text-center mx-2 fw-bold" style="width: 70px;" onchange="ingresoManual('{{ producto.id }}', '{{ producto.prod_nombre|escapejs }}', '{{ producto.prod_precio }}', this, {{ producto.inventario.stock_actual|default:0 }})">
+                                
+                                <button class="btn btn-sm btn-danger px-3" onclick="actualizarCarrito('{{ producto.id }}', '{{ producto.prod_nombre|escapejs }}', '{{ producto.prod_precio }}', 1, {{ producto.inventario.stock_actual|default:0 }})">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow border-0 sticky-top" style="top: 20px;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Resumen</h5>
+                    <button class="btn btn-sm btn-outline-light" onclick="limpiarCanasta()"><i class="bi bi-trash"></i> Vaciar</button>
+                </div>
+                <div class="card-body bg-light">
+                    <ul id="lista-carrito" class="list-group mb-3 shadow-sm">
+                        <li class="list-group-item text-center text-muted py-4">El carrito está vacío</li>
+                    </ul>
+                    
+                    <div class="bg-white p-3 rounded shadow-sm border">
+                        <div class="d-flex justify-content-between mb-2 text-muted">
+                            <span>Subtotal (Unidades: <span id="resumen-unidades">0</span>)</span>
+                            <span id="resumen-subtotal">S/ 0.00</span>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mb-2 text-success" id="fila-descuento" style="display: none !important;">
+                            <span>Descuento Volumen (10%) <i class="bi bi-info-circle" title="Aplica por compras mayores a 100 unidades"></i></span>
+                            <span id="resumen-descuento">- S/ 0.00</span>
+                        </div>
+                        
+                        <hr>
+                        <div class="d-flex justify-content-between fs-4 fw-bold mb-4 text-danger">
+                            <span>Total Neto</span>
+                            <span id="resumen-total">S/ 0.00</span>
+                        </div>
+                        
+                        <button class="btn btn-danger w-100 btn-lg shadow-sm fw-bold" onclick="finalizarPedido()"><i class="bi bi-check2-circle me-2"></i>Procesar Venta</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .hover-shadow { transition: transform 0.2s, box-shadow 0.2s; }
+        .hover-shadow:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
+        /* Ocultar flechas del input number para que se vea más limpio */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        let carrito = [];
+
+        // Función auxiliar para convertir "4,60" en 4.60 y evitar errores matemáticos
+        function parsePrecio(precioStr) {
+            return parseFloat(precioStr.toString().replace(',', '.'));
+        }
+
+        // Lógica para los botones + y -
+        function actualizarCarrito(id, nombre, precioStr, cambio, stockMaximo) {
+            let precio = parsePrecio(precioStr);
+            let input = document.getElementById('cant-' + id);
+            let existe = carrito.find(item => item.id === id);
+            let cantidadActual = existe ? existe.cantidad : 0;
+
+            if (cambio > 0 && cantidadActual >= stockMaximo) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Stock Insuficiente',
+                    text: `Solo hay ${stockMaximo} unidades disponibles de ${nombre}.`,
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                return;
+            }
+
+            if (existe) {
+                existe.cantidad += cambio;
+                if (existe.cantidad <= 0) {
+                    carrito = carrito.filter(item => item.id !== id);
+                    input.value = 0;
+                } else {
+                    input.value = existe.cantidad;
+                }
+            } else if (cambio > 0) {
+                carrito.push({ id, nombre, precio: precio, cantidad: 1 });
+                input.value = 1;
+            }
+            renderizarCarrito();
+        }
+
+        // Lógica para cuando el usuario teclea el número directamente
+        function ingresoManual(id, nombre, precioStr, inputElement, stockMaximo) {
+            let precio = parsePrecio(precioStr);
+            let nuevaCantidad = parseInt(inputElement.value);
+
+            if (isNaN(nuevaCantidad) || nuevaCantidad < 0) {
+                nuevaCantidad = 0;
+            }
+
+            if (nuevaCantidad > stockMaximo) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Stock Insuficiente',
+                    text: `Solo hay ${stockMaximo} unidades disponibles de ${nombre}.`,
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+                nuevaCantidad = stockMaximo; // Lo bloqueamos al límite máximo real
+            }
+
+            inputElement.value = nuevaCantidad; // Mostramos el número corregido
+
+            let existe = carrito.find(item => item.id === id);
+
+            if (nuevaCantidad === 0) {
+                carrito = carrito.filter(item => item.id !== id);
+            } else {
+                if (existe) {
+                    existe.cantidad = nuevaCantidad;
+                } else {
+                    carrito.push({ id, nombre, precio: precio, cantidad: nuevaCantidad });
+                }
+            }
+            renderizarCarrito();
+        }
+
+        function limpiarCanasta() {
+            if(carrito.length > 0) {
+                Swal.fire({
+                    title: '¿Vaciar carrito?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonText: 'Sí, vaciar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        carrito = [];
+                        document.querySelectorAll('input[id^="cant-"]').forEach(i => i.value = 0);
+                        renderizarCarrito();
+                    }
+                });
+            }
+        }
+
+        function renderizarCarrito() {
+            let lista = document.getElementById('lista-carrito');
+            lista.innerHTML = ''; 
+            let subtotal = 0;
+            let totalUnidades = 0;
+
+            if (carrito.length === 0) {
+                lista.innerHTML = '<li class="list-group-item text-center text-muted py-4"><i class="bi bi-cart-x fs-3 d-block mb-2"></i>El carrito está vacío</li>';
+                document.getElementById('fila-descuento').style.setProperty('display', 'none', 'important');
+            } else {
+                carrito.forEach((item) => {
+                    let totalItem = item.precio * item.cantidad;
+                    subtotal += totalItem;
+                    totalUnidades += item.cantidad;
+                    lista.innerHTML += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="my-0 fw-bold text-dark">${item.nombre}</h6>
+                                <small class="text-muted">${item.cantidad} x S/ ${item.precio.toFixed(2)}</small>
+                            </div>
+                            <span class="text-dark fw-bold">S/ ${totalItem.toFixed(2)}</span>
+                        </li>`;
+                });
+            }
+
+            let descuento = 0;
+            if (totalUnidades >= 100) {
+                descuento = subtotal * 0.10;
+                document.getElementById('fila-descuento').style.setProperty('display', 'flex', 'important');
+            } else {
+                document.getElementById('fila-descuento').style.setProperty('display', 'none', 'important');
+            }
+
+            let totalNeto = subtotal - descuento;
+
+            document.getElementById('resumen-unidades').innerText = totalUnidades;
+            document.getElementById('resumen-subtotal').innerText = `S/ ${subtotal.toFixed(2)}`;
+            document.getElementById('resumen-descuento').innerText = `- S/ ${descuento.toFixed(2)}`;
+            document.getElementById('resumen-total').innerText = `S/ ${totalNeto.toFixed(2)}`;
+        }
+
+        function finalizarPedido() {
+            if (carrito.length === 0) {
+                Swal.fire('Atención', 'Agregue productos al carrito antes de procesar la venta.', 'info');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Procesando Venta...',
+                text: 'Validando línea de crédito y stock',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading() }
+            });
+
+            fetch("{% url 'guardar_pedido' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ 
+                    carrito: carrito,
+                    cliente_id: "{{ cliente.id }}" 
+                })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Error desconocido del servidor');
+                return data;
+            })
+            .then(data => {
+                if (data.status === 'ok') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Venta Aprobada!',
+                        text: 'El pedido #PED-00' + data.pedido_id + ' ha sido registrado exitosamente.',
+                        confirmButtonColor: '#198754'
+                    }).then(() => {
+                        window.location.href = "{% url 'pedidos' %}";
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Venta Rechazada',
+                    text: err.message,
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    </script>
+{% endblock %}

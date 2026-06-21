@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Guía de Remisión</title>
+    <style>
+        body { font-family: Helvetica, sans-serif; font-size: 12px; color: #333; }
+        .header { text-align: center; border-bottom: 2px solid #F40009; padding-bottom: 10px; margin-bottom: 20px; }
+        .title { color: #F40009; font-size: 24px; font-weight: bold; margin: 0; }
+        .info-box { width: 100%; margin-bottom: 20px; }
+        .info-box td { padding: 5px; }
+        .table-products { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table-products th { background-color: #333; color: #fff; padding: 8px; text-align: left; }
+        .table-products td { border-bottom: 1px solid #ddd; padding: 8px; }
+        .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #777; }
+        .signature { margin-top: 50px; width: 100%; }
+        .signature td { text-align: center; border-top: 1px solid #333; padding-top: 5px; width: 40%; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 class="title">COCA-COLA LINDLEY S.A.</h1>
+        <p>Av. Principal 123, Ate - Lima | RUC: 20100000001</p>
+        <h2>GUÍA DE REMISIÓN REMITENTE</h2>
+        <h3>N° 001 - {{ despacho.id|stringformat:"06d" }}</h3>
+    </div>
+
+    <table class="info-box">
+        <tr>
+            <td><strong>Fecha de Despacho:</strong></td>
+            <td>{{ despacho.fecha_despacho|date:"d/m/Y H:i" }}</td>
+            <td><strong>Punto de Partida:</strong></td>
+            <td>Centro de Distribución Ate</td>
+        </tr>
+        <tr>
+            <td><strong>Cliente:</strong></td>
+            <td>{{ cliente.cli_razonSocial }}</td>
+            <td><strong>Punto de Llegada:</strong></td>
+            <td>{{ despacho.direccion_destino }}</td>
+        </tr>
+        <tr>
+            <td><strong>RUC Cliente:</strong></td>
+            <td>{{ cliente.cli_ruc }}</td>
+            <td><strong>Transportista:</strong></td>
+            <td>{{ despacho.transportista.nombre }} (Placa: {{ despacho.transportista.placa_vehiculo }})</td>
+        </tr>
+    </table>
+
+    <table class="table-products">
+        <thead>
+            <tr>
+                <th>Código SKU</th>
+                <th>Descripción del Producto</th>
+                <th>Cantidad</th>
+                <th>Peso Ref.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in detalles %}
+            <tr>
+                <td>{{ item.producto.prod_codigo }}</td>
+                <td>{{ item.producto.prod_nombre }}</td>
+                <td>{{ item.cantidad }} Uds.</td>
+                <td>{{ item.cantidad }} Kg</td> </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="signature" align="center">
+        <tr>
+            <td></td>
+            <td style="width: 20%;"></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>Firma del Transportista<br>{{ despacho.transportista.nombre }}</td>
+            <td></td>
+            <td>Firma del Cliente (Recepción)<br>{{ cliente.cli_razonSocial }}</td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Documento generado automáticamente por el Sistema Logístico Coca-Cola.
+    </div>
+
+</body>
+</html>
